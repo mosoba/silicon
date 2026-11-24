@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ACACIAMART · Kenya's Online Supermarket</title>
-    <meta name="description" content="ACACIAMART Kenya — shop groceries online, fast delivery" />
-    <meta name="theme-color" content="#059669" />
+    <title>SILICON MART · Kenya's Tech & Lifestyle Supermarket</title>
+    <meta name="description" content="SILICON MART Kenya — shop electronics, groceries, and lifestyle essentials online, fast delivery" />
+    <meta name="theme-color" content="#2563eb" />
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -15,11 +15,11 @@
            1. VARIABLES & RESET
            ============================================================ */
         :root {
-            /* Brand */
-            --primary: #059669;
-            --primary-dark: #047857;
-            --primary-light: #10b981;
-            --primary-bg: #ecfdf5;
+            /* Brand - Silicon Mart (blue/indigo tech vibe) */
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #3b82f6;
+            --primary-bg: #eff6ff;
             --accent: #f59e0b;
             --accent-dark: #d97706;
             --danger: #ef4444;
@@ -61,7 +61,7 @@
             --text-secondary: #94a3b8;
             --text-muted: #64748b;
             --border-color: #334155;
-            --primary-bg: #064e3b;
+            --primary-bg: #1e3a8a;
             --header-bg: rgba(15, 23, 42, 0.72);
         }
 
@@ -165,7 +165,7 @@
             background: linear-gradient(135deg, var(--primary), var(--primary-light));
             display: flex; align-items: center; justify-content: center;
             color: white; font-size: 1.1rem;
-            box-shadow: 0 6px 16px rgba(5, 150, 105, 0.32);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.32);
             flex-shrink: 0;
             animation: floatIcon 4s ease-in-out infinite;
         }
@@ -198,7 +198,7 @@
         }
         .header-search-box:focus-within {
             border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.08);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
         }
         .header-search-box input {
             flex: 1; border: none; outline: none; background: transparent;
@@ -231,7 +231,7 @@
             font-size: 10px; font-weight: 700;
             min-width: 18px; text-align: center;
             position: absolute; top: -4px; right: -6px;
-            box-shadow: 0 2px 6px rgba(5, 150, 105, 0.4);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
         }
 
         .theme-toggle {
@@ -343,7 +343,7 @@
         #mobileToggle.open .icon-close { display: inline-block; }
 
         /* ============================================================
-           6. HERO
+           6. HERO — Silicon Mart tech-inspired overlay
            ============================================================ */
         .hero-carousel {
             position: relative;
@@ -368,8 +368,8 @@
         .hero-slide .slide-overlay {
             position: absolute; inset: 0;
             background:
-                linear-gradient(180deg, rgba(4, 20, 15, 0.55) 0%, rgba(4, 20, 15, 0.35) 40%, rgba(4, 20, 15, 0.78) 100%),
-                linear-gradient(100deg, rgba(5, 150, 105, 0.55) 0%, rgba(4, 120, 87, 0.22) 45%, rgba(15, 23, 42, 0.15) 100%);
+                linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(15, 23, 42, 0.35) 40%, rgba(15, 23, 42, 0.85) 100%),
+                linear-gradient(100deg, rgba(37, 99, 235, 0.55) 0%, rgba(29, 78, 216, 0.22) 45%, rgba(15, 23, 42, 0.15) 100%);
         }
         .hero-content {
             position: relative; z-index: 5;
@@ -383,7 +383,7 @@
             backdrop-filter: blur(10px);
             padding: 6px 16px; border-radius: 9999px;
             font-weight: 700; font-size: 0.72rem;
-            color: #a7f3d0;
+            color: #bfdbfe;
             border: 1px solid rgba(255, 255, 255, 0.18);
             margin-bottom: 1rem;
             animation: slideUp 0.6s ease;
@@ -398,7 +398,7 @@
             letter-spacing: -0.8px;
         }
         .hero-title .highlight {
-            background: linear-gradient(135deg, #6ee7b7, #34d399);
+            background: linear-gradient(135deg, #93c5fd, #60a5fa);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -601,7 +601,7 @@
             z-index: 2;
         }
         .carousel-card .c-badge.best-seller { background: var(--primary); }
-        .carousel-card .c-badge.new { background: #059669; }
+        .carousel-card .c-badge.new { background: #2563eb; }
         .carousel-card .c-image {
             width: 100%; height: 110px;
             object-fit: contain;
@@ -661,7 +661,7 @@
         }
         .search-container:focus-within {
             border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.08);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
         }
         .search-input {
             width: 100%;
@@ -719,7 +719,7 @@
         .category-pill.active {
             background: var(--primary); color: white;
             border-color: var(--primary);
-            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
         }
         .category-pill .count {
             background: rgba(255, 255, 255, 0.15);
@@ -742,7 +742,7 @@
         }
         .sort-select:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.08);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
         }
 
         /* ============================================================
@@ -841,7 +841,7 @@
             text-transform: uppercase;
         }
         .product-card .badge.best-seller { background: var(--accent); }
-        .product-card .badge.new { background: #059669; }
+        .product-card .badge.new { background: #2563eb; }
         .product-card .badge.trending { background: #8b5cf6; }
 
         .btn-add-to-cart {
@@ -957,7 +957,7 @@
             display: flex; align-items: center; gap: 10px;
             max-width: 90%;
         }
-        .toast.success { background: linear-gradient(135deg, #065f46, #047857); }
+        .toast.success { background: linear-gradient(135deg, #1e40af, #2563eb); }
         .toast.error { background: linear-gradient(135deg, #991b1b, #dc2626); }
         .toast.hidden { display: none; }
 
@@ -1086,16 +1086,16 @@
      ============================================================ -->
 <header class="app-header" id="mainHeader" role="banner">
     <div class="container-full header-row1 flex items-center justify-between gap-3 relative">
-        <a href="javascript:void(0)" onclick="showHome()" class="flex items-center gap-2" aria-label="ACACIAMART Home">
-            <span class="brand-icon-wrap"><i class="fas fa-shopping-basket"></i></span>
-            <span class="brand-text">ACACIA<span class="highlight">MART</span></span>
+        <a href="javascript:void(0)" onclick="showHome()" class="flex items-center gap-2" aria-label="SILICON MART Home">
+            <span class="brand-icon-wrap"><i class="fas fa-microchip"></i></span>
+            <span class="brand-text">SILICON<span class="highlight">MART</span></span>
             <span class="brand-tag">KE</span>
         </a>
 
         <div class="header-search">
             <div class="header-search-box">
                 <label for="headerSearchInput" class="sr-only">Search products</label>
-                <input type="text" id="headerSearchInput" placeholder="Search bread, juice, snacks, beverages..." autocomplete="off" onkeydown="if(event.key==='Enter'){headerSearch();}" />
+                <input type="text" id="headerSearchInput" placeholder="Search electronics, groceries, snacks..." autocomplete="off" onkeydown="if(event.key==='Enter'){headerSearch();}" />
                 <button onclick="headerSearch()" aria-label="Search"><i class="fas fa-search"></i></button>
             </div>
         </div>
@@ -1142,22 +1142,22 @@
      ============================================================ -->
 <div id="homeView">
 
-    <!-- Hero carousel -->
+    <!-- Hero carousel — Silicon Mart themed -->
     <section class="hero-carousel" aria-label="Hero banner" id="heroCarousel">
         <div class="hero-slide active">
+            <img class="slide-img" src="https://images.unsplash.com/photo-1518770660439-4636190af475?w=1800&h=900&fit=crop&auto=format" alt="Circuit board tech" />
+            <div class="slide-overlay"></div>
+        </div>
+        <div class="hero-slide">
+            <img class="slide-img" src="https://images.unsplash.com/photo-1498049794561-7780e7231661?w=1800&h=900&fit=crop&auto=format" alt="Electronics and gadgets" />
+            <div class="slide-overlay"></div>
+        </div>
+        <div class="hero-slide">
+            <img class="slide-img" src="https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=1800&h=900&fit=crop&auto=format" alt="Tech devices on desk" />
+            <div class="slide-overlay"></div>
+        </div>
+        <div class="hero-slide">
             <img class="slide-img" src="https://images.unsplash.com/photo-1583258292688-d0213dc5a3a7?w=1800&h=900&fit=crop&auto=format" alt="Supermarket aisle" />
-            <div class="slide-overlay"></div>
-        </div>
-        <div class="hero-slide">
-            <img class="slide-img" src="https://images.unsplash.com/photo-1556909212-d5b6e26a4c33?w=1800&h=900&fit=crop&auto=format" alt="Shopping cart" />
-            <div class="slide-overlay"></div>
-        </div>
-        <div class="hero-slide">
-            <img class="slide-img" src="https://images.unsplash.com/photo-1543168256-418811576931?w=1800&h=900&fit=crop&auto=format" alt="Fresh produce section" />
-            <div class="slide-overlay"></div>
-        </div>
-        <div class="hero-slide">
-            <img class="slide-img" src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1800&h=900&fit=crop&auto=format" alt="Supermarket checkout" />
             <div class="slide-overlay"></div>
         </div>
 
@@ -1165,9 +1165,9 @@
         <button class="hero-arrow next" onclick="heroNext()" aria-label="Next slide"><i class="fas fa-chevron-right"></i></button>
 
         <div class="hero-content">
-            <div class="hero-badge"><i class="fas fa-store"></i> Kenya's Online Supermarket</div>
-            <h1 class="hero-title">Fresh Products,<br><span class="highlight">Delivered Daily.</span></h1>
-            <p class="hero-subtitle">Shop bread, juice, snacks, beverages, and all your supermarket essentials at the best prices.</p>
+            <div class="hero-badge"><i class="fas fa-microchip"></i> Kenya's Tech & Lifestyle Supermarket</div>
+            <h1 class="hero-title">Silicon Quality,<br><span class="highlight">Everyday Essentials.</span></h1>
+            <p class="hero-subtitle">Shop electronics, fresh groceries, snacks, beverages, and everything in between — delivered fast across Nairobi.</p>
             <div class="flex flex-wrap justify-center gap-3">
                 <a href="javascript:void(0)" class="hero-btn-primary" onclick="showShop('all')"><i class="fas fa-bolt"></i> Start Shopping</a>
                 <a href="javascript:void(0)" class="hero-btn-secondary" onclick="scrollToId('location')"><i class="fas fa-map-marker-alt"></i> Find a Store</a>
@@ -1217,7 +1217,7 @@
                 <div class="relative">
                     <i class="fas fa-search search-icon"></i>
                     <label for="searchInput" class="sr-only">Search for products</label>
-                    <input type="text" id="searchInput" placeholder="Search bread, juice, snacks, beverages..." class="search-input" oninput="filterProducts()" autocomplete="off" />
+                    <input type="text" id="searchInput" placeholder="Search electronics, groceries, snacks..." class="search-input" oninput="filterProducts()" autocomplete="off" />
                     <button onclick="clearSearch()" class="search-clear" id="clearBtn" aria-label="Clear search"><i class="fas fa-times"></i></button>
                 </div>
             </div>
@@ -1344,7 +1344,7 @@
                 <div class="map-container">
                     <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d255282.35853742383!2d36.68219671385957!3d-1.3028611!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f1172d84d49a7%3A0xf7cf0254b297924c!2sNairobi%2C%20Kenya!5e0!3m2!1sen!2s!4v1700000000000"
                             allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-                            title="ACACIAMART Store Location"></iframe>
+                            title="SILICON MART Store Location"></iframe>
                 </div>
             </div>
             <div style="display:flex; flex-direction:column; gap:14px;">
@@ -1354,7 +1354,7 @@
                 </div>
                 <div class="info-card">
                     <h3>📞 Contact</h3>
-                    <p>+254 700 123 456<br />info@acaciamart.co.ke</p>
+                    <p>+254 700 123 456<br />info@siliconmart.co.ke</p>
                 </div>
                 <div class="info-card">
                     <h3>🕐 Hours</h3>
@@ -1371,14 +1371,14 @@
 <section id="about" class="why-us-section" aria-label="Why choose us">
     <div class="container-full">
         <div style="text-align:center; margin-bottom:20px;">
-            <h2 class="text-primary" style="font-size:1.15rem; font-weight:800;">Why ACACIAMART?</h2>
-            <p class="text-muted" style="font-size:0.75rem;">Kenya's trusted online supermarket</p>
+            <h2 class="text-primary" style="font-size:1.15rem; font-weight:800;">Why SILICON MART?</h2>
+            <p class="text-muted" style="font-size:0.75rem;">Kenya's trusted tech & lifestyle supermarket</p>
         </div>
         <div class="why-us-grid">
             <div class="why-us-item">
-                <div class="why-us-icon">🛒</div>
-                <h3>Fresh Products</h3>
-                <p>Daily restocked</p>
+                <div class="why-us-icon">💻</div>
+                <h3>Tech + Lifestyle</h3>
+                <p>Electronics & essentials</p>
             </div>
             <div class="why-us-item">
                 <div class="why-us-icon">🚚</div>
@@ -1393,7 +1393,7 @@
             <div class="why-us-item">
                 <div class="why-us-icon">🛡️</div>
                 <h3>Quality Guarantee</h3>
-                <p>Fresh &amp; genuine</p>
+                <p>Genuine & fresh</p>
             </div>
         </div>
     </div>
@@ -1407,11 +1407,11 @@
         <div class="footer-grid">
             <div>
                 <h3 style="color:white; font-size:1.15rem; display:flex; align-items:center; gap:8px;">
-                    <span class="brand-icon-wrap" style="animation:none;"><i class="fas fa-shopping-basket"></i></span>
-                    ACACIA<span class="text-primary">MART</span>
+                    <span class="brand-icon-wrap" style="animation:none;"><i class="fas fa-microchip"></i></span>
+                    SILICON<span class="text-primary">MART</span>
                 </h3>
                 <p style="max-width:280px; line-height:1.6; margin-top:10px; font-size:0.75rem;">
-                    Your trusted online supermarket in Kenya — fresh groceries, everyday essentials, and unbeatable prices, delivered fast.
+                    Your trusted online tech & lifestyle supermarket in Kenya — electronics, groceries, everyday essentials, and unbeatable prices, delivered fast.
                 </p>
                 <div class="footer-social" style="display:flex; gap:8px; margin-top:14px;">
                     <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
@@ -1455,7 +1455,7 @@
         </div>
         <div class="footer-divider"></div>
         <div class="footer-bottom" style="font-size:0.75rem; color:rgba(255,255,255,0.45);">
-            <p>© 2026 <span style="color:white; font-weight:500;">ACACIAMART Kenya</span>. All rights reserved.</p>
+            <p>© 2026 <span style="color:white; font-weight:500;">SILICON MART Kenya</span>. All rights reserved.</p>
             <div style="display:flex; gap:16px;">
                 <a href="#">Privacy Policy</a>
                 <a href="#">Terms of Service</a>
@@ -1607,18 +1607,18 @@
        CATEGORY IMAGES
        ============================================================ */
     const CATEGORY_IMAGE_MAP = [
-        [['beverage', 'drink', 'juice', 'soda'], 'https://quest.co.ke/wp-content/uploads/2023/08/minute-maid.jpg'],
+        [['beverage', 'drink', 'juice', 'soda'], 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=400&h=300&fit=crop&auto=format'],
         [['snack', 'chip', 'biscuit', 'confection'], 'https://images.unsplash.com/photo-1613919113640-25732ec5e61f?w=400&h=300&fit=crop&auto=format'],
         [['fresh', 'fruit', 'vegetable', 'produce'], 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&h=300&fit=crop&auto=format'],
         [['dairy', 'milk', 'cheese', 'yog'], 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&h=300&fit=crop&auto=format'],
         [['bakery', 'bread'], 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=300&fit=crop&auto=format'],
         [['meat', 'butchery', 'chicken', 'beef'], 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&h=300&fit=crop&auto=format'],
         [['household', 'clean', 'homecare', 'laundry'], 'https://images.unsplash.com/photo-1585421514738-01798e348b17?w=400&h=300&fit=crop&auto=format'],
-        [['health', 'beauty', 'personal care', 'cosmetic'], 'https://nairomarket.co.ke/cdn/shop/files/8DTKkem0P1.jpg?v=1723750494&width=1445'],
-        [['baby', 'kid', 'period', 'pads', 'sanitary', 'feminine'], 'https://cdn.mafrservices.com/sys-master-root/h05/ha4/26929875550238/153610_main.jpg?im=Resize=376'],
+        [['health', 'beauty', 'personal care', 'cosmetic'], 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=300&fit=crop&auto=format'],
+        [['baby', 'kid', 'period', 'pads', 'sanitary', 'feminine'], 'https://images.unsplash.com/photo-1519689680058-324335c77eba?w=400&h=300&fit=crop&auto=format'],
         [['frozen'], 'https://images.unsplash.com/photo-1584362917165-526a968579e8?w=400&h=300&fit=crop&auto=format'],
         [['grain', 'cereal', 'rice', 'flour', 'cupboard'], 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=300&fit=crop&auto=format'],
-        [['electronic', 'appliance'], 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=300&fit=crop&auto=format'],
+        [['electronic', 'appliance', 'tech', 'gadget'], 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=300&fit=crop&auto=format'],
         [['stationery', 'office'], 'https://images.unsplash.com/photo-1568205612837-017257d2310a?w=400&h=300&fit=crop&auto=format'],
         [['liquor', 'wine', 'beer', 'spirit', 'alcohol'], 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=400&h=300&fit=crop&auto=format']
     ];
@@ -1628,7 +1628,7 @@
         for (const [keywords, url] of CATEGORY_IMAGE_MAP) {
             if (keywords.some(k => lower.includes(k))) return url;
         }
-        return 'https://images.unsplash.com/photo-1543168256-418811576931?w=400&h=300&fit=crop&auto=format';
+        return 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format';
     }
 
     /* ============================================================
