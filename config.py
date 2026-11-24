@@ -19,14 +19,14 @@ class Config:
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024
 
     # ===== SUPABASE CONFIGURATION =====
-    # Currently pointing to: tkotvyblutchsudpqqqe (TEST)
+    # Currently pointing to: pbbfbtuycmjwqncvaamw (PRODUCTION)
     SUPABASE_URL = os.environ.get(
         'NEXT_PUBLIC_SUPABASE_URL',
-        'https://tkotvyblutchsudpqqqe.supabase.co'
+        'https://pbbfbtuycmjwqncvaamw.supabase.co'
     )
     SUPABASE_KEY = os.environ.get(
         'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-        'sb_publishable_NSVq3YS29H-U5vjhB6gC7A_uWFsezmy'
+        'sb_publishable_ujLUAD3rqCXxiy_lJ44-Rg_IhVwu3Qf'
     )
 
     SUPABASE_HEADERS = {
