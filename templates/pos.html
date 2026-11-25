@@ -3215,6 +3215,8 @@ console.log('  - showCreditCustomerInfo()');
                             items: order.items,
                             total_amount: order.total,
                             staff_name: order.staff_name || 'System',
+                            transaction_id: order.order_id,
+                            order_id: order.order_id,
                             notes: order.notes || 'Offline credit order sync'
                         };
 
@@ -3253,6 +3255,7 @@ console.log('  - showCreditCustomerInfo()');
                     } else {
                         let url = '/admin/pos/place-order';
                         let body = {
+                            order_id: order.order_id,
                             items: order.items,
                             subtotal: order.subtotal || order.total,
                             shipping: order.shipping || 0,
@@ -3283,7 +3286,10 @@ console.log('  - showCreditCustomerInfo()');
                             console.log('✅ Synced normal order:', order.order_id);
                         } else {
                             failed++;
-                            console.log('❌ Failed normal order:', order.order_id, result.message);
+                            const syncError = result.supabase_error
+                                ? `Supabase 401/permission: ${result.supabase_error}`
+                                : (result.message || 'Unknown sync failure');
+                            console.log('❌ Failed normal order:', order.order_id, syncError);
                         }
                     }
                 } catch(error) {
@@ -3399,6 +3405,7 @@ console.log('  - showCreditCustomerInfo()');
         const total = Math.max(0, subtotal - discountAmount + tipAmount);
 
         const orderData = {
+            order_id: 'POS-' + Date.now().toString(36).toUpperCase().slice(-8),
             items: posCart.map(item => ({
                 product_id: item.id,
                 name: item.name,
@@ -3421,12 +3428,6 @@ console.log('  - showCreditCustomerInfo()');
             created_at: new Date().toISOString()
         };
 
-        if (!navigator.onLine) {
-            console.log('📡 Offline detected, saving order locally...');
-            saveOrderOffline(orderData, btn, originalText);
-            return;
-        }
-
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
@@ -3438,11 +3439,11 @@ console.log('  - showCreditCustomerInfo()');
         })
         .then(response => {
             clearTimeout(timeoutId);
-            return response.json();
+            return response.json().then(data => ({ ok: response.ok, status: response.status, data }));
         })
-        .then(data => {
+        .then(({ ok, status, data }) => {
             clearTimeout(timeoutId);
-            if (data.success) {
+            if (ok && data.success) {
                 posCart.forEach(item => {
                     const product = allProducts.find(p => String(p.id) === String(item.id));
                     if (product) {
@@ -3496,16 +3497,28 @@ console.log('  - showCreditCustomerInfo()');
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             } else {
-                console.log('📡 API error, saving offline:', data.message);
-                showToast('📡 Saving order offline...', 'warning');
-                saveOrderOffline(orderData, btn, originalText);
+                console.error('❌ Order rejected by server:', status, data);
+                showToast('❌ ' + (data.message || data.error || 'Order could not be placed'), 'error');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         })
         .catch(err => {
             clearTimeout(timeoutId);
             console.log('❌ Network error, saving offline:', err.message);
-            showToast('📡 No connection, saving offline...', 'warning');
-            saveOrderOffline(orderData, btn, originalText);
+            const isNetworkFailure = err && (
+                err.name === 'AbortError' ||
+                err.name === 'TypeError' ||
+                /network|fetch|failed/i.test(err.message || '')
+            );
+            if (!navigator.onLine || isNetworkFailure) {
+                showToast('📡 No connection, saving offline...', 'warning');
+                saveOrderOffline(orderData, btn, originalText);
+            } else {
+                showToast('❌ Could not reach the POS server. Order was not placed.', 'error');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         });
     }
 
@@ -3741,21 +3754,18 @@ console.log('  - showCreditCustomerInfo()');
             return 'POS';
         }
 
+        const creditId = 'CREDIT-' + Date.now().toString(36).toUpperCase();
         const data = {
             customer_id: String(customerId),
             items: itemsWithIds,
             total_amount: total,
             staff_name: getCleanStaffName(),
+            transaction_id: creditId,
+            order_id: creditId,
             notes: notes + ' (Credit purchase via POS)'
         };
 
         console.log('📤 Sending credit purchase:', data);
-
-        if (!navigator.onLine) {
-            console.log('📡 OFFLINE DETECTED - Saving credit order locally...');
-            saveCreditOrderOffline(data, customerName, total, itemsWithIds, notes, btn, originalText);
-            return;
-        }
 
         fetch('/admin/api/credit/purchase', {
             method: 'POST',
@@ -3862,7 +3872,18 @@ console.log('  - showCreditCustomerInfo()');
         })
         .catch(err => {
             console.log('📡 FETCH FAILED - Saving credit order locally...');
-            saveCreditOrderOffline(data, customerName, total, itemsWithIds, notes, btn, originalText);
+            const isNetworkFailure = err && (
+                err.name === 'AbortError' ||
+                err.name === 'TypeError' ||
+                /network|fetch|failed/i.test(err.message || '')
+            );
+            if (!navigator.onLine || isNetworkFailure) {
+                saveCreditOrderOffline(data, customerName, total, itemsWithIds, notes, btn, originalText);
+            } else {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                showToast('❌ Could not reach the POS server. Credit purchase was not placed.', 'error');
+            }
         });
     }
 
