@@ -653,39 +653,50 @@
             </div>
 
             <div class="nav-label">Main</div>
-            <a href="#" class="nav-item active" onclick="showSection('dashboard'); return false;">
+            <a href="/admin" class="nav-item{% if request.path == '/admin' %} active{% endif %}" onclick="if(window.location.pathname === '/admin'){showSection('dashboard'); return false;}">
                 <i class="fas fa-th-large"></i><span>Dashboard</span>
             </a>
 
             <div class="nav-label">Management</div>
-            <a href="#orders" class="nav-item" onclick="showSection('orders'); return false;">
+            <a href="/admin#orders" class="nav-item" onclick="if(window.location.pathname === '/admin'){showSection('orders'); return false;}">
                 <i class="fas fa-shopping-cart"></i><span>Orders</span>
-                <span class="badge" id="orderCount">{{ stats.total_orders|default(0) }}</span>
+                <span class="badge" id="orderCount">{{ (stats|default({})).total_orders|default(0) }}</span>
             </a>
-            <a href="#products" class="nav-item" onclick="showSection('products'); return false;">
+            <a href="/admin#products" class="nav-item" onclick="if(window.location.pathname === '/admin'){showSection('products'); return false;}">
                 <i class="fas fa-box"></i><span>Products</span>
-                <span class="badge" id="productCount">{{ stats.total_products|default(0) }}</span>
+                <span class="badge" id="productCount">{{ (stats|default({})).total_products|default(0) }}</span>
             </a>
-            <a href="#customers" class="nav-item" onclick="showSection('customers'); return false;">
+            <a href="/admin#customers" class="nav-item" onclick="if(window.location.pathname === '/admin'){showSection('customers'); return false;}">
                 <i class="fas fa-users"></i><span>Customers</span>
-                <span class="badge" id="customerCount">{{ stats.total_customers|default(0) }}</span>
+                <span class="badge" id="customerCount">{{ (stats|default({})).total_customers|default(0) }}</span>
             </a>
-            <a href="#" class="nav-item" onclick="showAddCategoryModal(); return false;">
+            <a href="/admin#add-category" class="nav-item" onclick="if(window.location.pathname === '/admin'){showAddCategoryModal(); return false;}">
                 <i class="fas fa-tags"></i><span>Add Categories</span>
             </a>
-            <a href="#" class="nav-item" onclick="showAddUserModal(); return false;">
+            <a href="/admin#add-user" class="nav-item" onclick="if(window.location.pathname === '/admin'){showAddUserModal(); return false;}">
                 <i class="fas fa-user-plus"></i><span>Add Users</span>
             </a>
 
-            <a href="#credit" class="nav-item" onclick="showSection('credit'); return false;">
+            <a href="/admin#credit" class="nav-item" onclick="if(window.location.pathname === '/admin'){showSection('credit'); return false;}">
                 <i class="fas fa-hand-holding-usd" style="color: #f59e0b;"></i><span>Credit Management</span>
                 <span class="badge" id="creditCount" style="background: #f59e0b; color: white;">0</span>
             </a>
 
-            <a href="#suppliers" class="nav-item" onclick="showSection('suppliers'); return false;">
+            <a href="/admin#suppliers" class="nav-item" onclick="if(window.location.pathname === '/admin'){showSection('suppliers'); return false;}">
                 <i class="fas fa-truck" style="color: #8b5cf6;"></i><span>Suppliers</span>
                 <span class="badge" id="supplierCount" style="background: #8b5cf6; color: white;">0</span>
             </a>
+            {% if session.get('user', {}).get('role') in ('admin','manager','staff') %}
+            <a href="/admin/receive-stock" class="nav-item{% if request.path == '/admin/receive-stock' %} active{% endif %}">
+                <i class="fas fa-box-open"></i><span>📦 Receive Stock</span>
+            </a>
+            <a href="/admin/products/split" class="nav-item{% if request.path == '/admin/products/split' %} active{% endif %}">
+                <i class="fas fa-scissors"></i><span>✂️ Split Bulk</span>
+            </a>
+            <a href="/admin/stock-movements" class="nav-item{% if request.path == '/admin/stock-movements' %} active{% endif %}">
+                <i class="fas fa-chart-line"></i><span>📊 Stock Movements</span>
+            </a>
+            {% endif %}
 
             <div class="nav-label">Sales</div>
             <a href="/admin/pos" target="_blank" class="nav-item pos-link">
@@ -694,10 +705,10 @@
             </a>
 
             <div class="nav-label">Analytics</div>
-            <a href="#analytics" class="nav-item" onclick="showSection('analytics'); return false;">
+            <a href="/admin#analytics" class="nav-item" onclick="if(window.location.pathname === '/admin'){showSection('analytics'); return false;}">
                 <i class="fas fa-chart-pie"></i><span>Analytics</span>
             </a>
-            <a href="#add-product" class="nav-item" onclick="showSection('add-product'); return false;">
+            <a href="/admin#add-product" class="nav-item" onclick="if(window.location.pathname === '/admin'){showSection('add-product'); return false;}">
                 <i class="fas fa-plus-circle"></i><span>Add Product</span>
             </a>
 
@@ -1529,6 +1540,23 @@
 
             // Sidebar counts
             window.loadAllSidebarCounts();
+
+            // Open the requested admin section after navigating from an inventory page.
+            if (window.location.pathname === '/admin') {
+                var sectionMap = {
+                    '#orders': 'orders',
+                    '#products': 'products',
+                    '#customers': 'customers',
+                    '#credit': 'credit',
+                    '#suppliers': 'suppliers',
+                    '#analytics': 'analytics',
+                    '#add-product': 'add-product'
+                };
+                var requestedSection = sectionMap[window.location.hash];
+                if (requestedSection) {
+                    window.showSection(requestedSection);
+                }
+            }
 
             // Backdrop close
             var backdrop = document.getElementById('backdrop');
