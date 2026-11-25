@@ -16,7 +16,16 @@ from werkzeug.utils import secure_filename
 
 from config import Config
 from models.user import User
-from utils.data import get_cart, get_sales_analytics, load_bundles, load_orders, load_products, update_product_stock
+from utils.data import (
+    get_cart,
+    get_sales_analytics,
+    load_bundles,
+    load_orders,
+    load_products,
+    receive_stock,
+    split_product,
+    update_product_stock,
+)
 from utils.storage import load_json_data, save_json_data
 
 admin_bp = Blueprint('admin', __name__)
@@ -1762,6 +1771,21 @@ def api_record_credit_purchase():
         for field in required:
             if not data.get(field):
                 return jsonify({'success': False, 'message': f'{field} is required'}), 400
+
+        supplied_transaction_id = data.get('transaction_id')
+        if supplied_transaction_id:
+            existing_tx = requests.get(
+                f"{Config.SUPABASE_URL}/rest/v1/credit_transactions?transaction_id=eq.{supplied_transaction_id}&select=transaction_id",
+                headers=Config.SUPABASE_HEADERS,
+                timeout=10,
+            )
+            if existing_tx.status_code == 200 and existing_tx.json():
+                return jsonify({
+                    'success': True,
+                    'duplicate': True,
+                    'transaction_id': supplied_transaction_id,
+                    'message': 'Credit purchase already processed',
+                })
         
         print(f"📤 Record credit purchase - customer_id: {data.get('customer_id')}")
         print(f"📤 Total amount: {data.get('total_amount')}")
@@ -1799,10 +1823,27 @@ def api_record_credit_purchase():
         
         # STOCK DEDUCTION
         print(f"📦 Processing {len(items_list)} items for stock deduction...")
-        
+
+        aggregated_credit_items = {}
         for item in items_list:
             product_id = item.get('product_id')
-            quantity = int(item.get('quantity', 1))
+            if not product_id:
+                continue
+            try:
+                quantity = float(item.get('quantity', 1) or 1)
+            except (TypeError, ValueError):
+                quantity = 1
+            if quantity <= 0:
+                continue
+            if product_id not in aggregated_credit_items:
+                aggregated_credit_items[product_id] = dict(item)
+                aggregated_credit_items[product_id]['quantity'] = quantity
+            else:
+                aggregated_credit_items[product_id]['quantity'] += quantity
+
+        for item in aggregated_credit_items.values():
+            product_id = item.get('product_id')
+            quantity = float(item.get('quantity', 1) or 1)
             
             if not product_id:
                 print(f"⚠️ No product_id for item: {item.get('name')}")
@@ -1818,7 +1859,7 @@ def api_record_credit_purchase():
                 products = response.json()
                 if products:
                     product = products[0]
-                    current_stock = product.get('stock', 0)
+                    current_stock = float(product.get('stock', 0) or 0)
                     new_stock = max(0, current_stock - quantity)
                     
                     print(f"📦 {item.get('name')}: {current_stock} → {new_stock}")
@@ -1836,7 +1877,9 @@ def api_record_credit_purchase():
             items=items_list,
             total_amount=float(data['total_amount']),
             staff_name=data['staff_name'],
-            notes=data.get('notes', '')
+            notes=data.get('notes', ''),
+            transaction_id=data.get('transaction_id'),
+            order_id=data.get('order_id'),
         )
         
         print(f"📥 Result: {result}")
@@ -2977,7 +3020,7 @@ def admin_products():
             timeout=10,
         )
 
-        if response.status_code in [200, 201]:
+        if response.status_code in [200, 201, 204]:
             import utils.data
             utils.data.products_cache = []
             return jsonify({
@@ -3677,6 +3720,24 @@ def admin_pos_place_order():
 
         order_id = data.get('order_id', f'POS-{uuid.uuid4().hex[:8].upper()}')
         items = data.get('items', [])
+
+        # Orders can be retried after an offline sync timeout. Reusing the same
+        # order ID must never deduct stock or insert the order a second time.
+        existing_order_response = requests.get(
+            f"{Config.SUPABASE_URL}/rest/v1/orders?order_id=eq.{order_id}&select=order_id",
+            headers=pos_supabase_write_headers(),
+            timeout=10,
+        )
+        if existing_order_response.status_code == 200:
+            existing_orders = existing_order_response.json()
+            if existing_orders:
+                return jsonify({
+                    'success': True,
+                    'order_id': order_id,
+                    'synced': True,
+                    'duplicate': True,
+                    'message': 'Order already processed',
+                })
         
         print(f"📦 Received order: {order_id}")
         print(f"📦 Items: {len(items)}")
@@ -3689,10 +3750,27 @@ def admin_pos_place_order():
         
         stock_updated = []
         stock_failed = []
-        
+
+        aggregated_items = {}
         for item in items:
-            product_id = item.get('product_id')
-            quantity = int(item.get('quantity', 1))
+            product_id = item.get('product_id') or item.get('id')
+            if not product_id:
+                continue
+            try:
+                quantity = float(item.get('quantity', 1) or 1)
+            except (TypeError, ValueError):
+                quantity = 1
+            if quantity <= 0:
+                continue
+            if product_id not in aggregated_items:
+                aggregated_items[product_id] = dict(item)
+                aggregated_items[product_id]['product_id'] = product_id
+                aggregated_items[product_id]['quantity'] = quantity
+            else:
+                aggregated_items[product_id]['quantity'] += quantity
+        
+        for product_id, item in aggregated_items.items():
+            quantity = float(item.get('quantity', 1) or 1)
             
             if not product_id:
                 print(f"⚠️ No product_id for item: {item.get('name')}")
@@ -3720,7 +3798,7 @@ def admin_pos_place_order():
                         
                         update_response = requests.patch(
                             f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{product_id}",
-                            headers=Config.SUPABASE_HEADERS,
+                            headers=pos_supabase_write_headers(),
                             json={'stock': new_stock},
                             timeout=10
                         )
@@ -3757,6 +3835,8 @@ def admin_pos_place_order():
                     'name': item.get('name'),
                     'reason': str(e)
                 })
+
+        items = list(aggregated_items.values())
 
         print(f"📊 Stock updated: {len(stock_updated)} items")
         for s in stock_updated:
@@ -3806,12 +3886,12 @@ def admin_pos_place_order():
         try:
             response = requests.post(
                 f"{Config.SUPABASE_URL}/rest/v1/orders",
-                headers=Config.SUPABASE_HEADERS,
+                headers=pos_supabase_write_headers(),
                 json=order_data,
                 timeout=15
             )
 
-            if response.status_code in [200, 201]:
+            if response.status_code in [200, 201, 204]:
                 print(f"✅ Order saved to Supabase: {order_id}")
                 
                 import utils.data
@@ -3831,16 +3911,53 @@ def admin_pos_place_order():
             else:
                 print(f"❌ Failed to save order: {response.status_code}")
                 print(f"Response: {response.text[:200]}")
+
+                for stock_change in stock_updated:
+                    name = stock_change.get('name')
+                    matching_item = next(
+                        (i for i in aggregated_items.values() if i.get('name') == name),
+                        None,
+                    )
+                    if matching_item:
+                        product_id = matching_item.get('product_id') or matching_item.get('id')
+                        if product_id:
+                            requests.patch(
+                                f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{product_id}",
+                                headers=pos_supabase_write_headers(),
+                                json={'stock': stock_change['old_stock']},
+                                timeout=10,
+                            )
                 
                 return jsonify({
                     'success': False,
                     'message': f'Failed to save order: {response.status_code}',
-                    'supabase_error': response.text[:500]
+                    'supabase_error': response.text[:500],
+                    'permission_hint': (
+                        'Run migrations/002_pos_orders_permissions.sql in Supabase SQL Editor '
+                        'to grant INSERT, SELECT, and UPDATE on public.orders.'
+                        if response.status_code in [401, 403] or '42501' in response.text
+                        else None
+                    )
                 }), 500
                 
         except Exception as e:
             print(f"❌ Order save error: {e}")
             traceback.print_exc()
+            for stock_change in stock_updated:
+                name = stock_change.get('name')
+                matching_item = next(
+                    (i for i in aggregated_items.values() if i.get('name') == name),
+                    None,
+                )
+                if matching_item:
+                    product_id = matching_item.get('product_id') or matching_item.get('id')
+                    if product_id:
+                        requests.patch(
+                            f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{product_id}",
+                            headers=pos_supabase_write_headers(),
+                            json={'stock': stock_change['old_stock']},
+                            timeout=10,
+                        )
             return jsonify({
                 'success': False,
                 'message': f'Error saving order: {str(e)}'
@@ -4074,5 +4191,359 @@ def api_process_return():
         print(f'❌ Return error: {e}')
         traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+def inventory_staff_required():
+    user = session.get('user', {})
+    role = user.get('role')
+    return role in ('admin', 'manager', 'staff')
+
+
+def inventory_layout_stats(products=None):
+    if products is None:
+        products = load_products()
+    return {
+        'total_orders': 0,
+        'total_products': len(products),
+        'total_customers': 0,
+    }
+
+
+def pos_supabase_write_headers():
+    headers = dict(Config.SUPABASE_HEADERS)
+    service_role_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SECRET_KEY')
+    if service_role_key:
+        headers['apikey'] = service_role_key
+        headers['Authorization'] = f'Bearer {service_role_key}'
+    return headers
+
+
+@admin_bp.route('/admin/products/split', methods=['GET'])
+def admin_split_product_page():
+    try:
+        if not inventory_staff_required():
+            return 'Forbidden', 403
+        products = [
+            p for p in load_products()
+            if str(p.get('is_bulk', False)).lower() in ('true', '1')
+            and float(p.get('stock', 0) or 0) > 0
+        ]
+        return render_template(
+            'admin_split_product.html',
+            parents=products,
+            stats=inventory_layout_stats(products),
+        )
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@admin_bp.route('/admin/products/split', methods=['POST'])
+def admin_split_product_submit():
+    try:
+        if not inventory_staff_required():
+            return jsonify({'success': False, 'error': 'Forbidden'}), 403
+        data = request.get_json(silent=True) or {}
+        parent_id = data.get('parent_id')
+        allocations = data.get('allocations', [])
+        if not parent_id:
+            return jsonify({'success': False, 'error': 'Parent product is required'}), 400
+        staff_name = session.get('user', {}).get('name')
+        result = split_product(parent_id, allocations, staff_name, data.get('notes'))
+        return jsonify(result), (200 if result.get('success') else 400)
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@admin_bp.route('/admin/api/parent-children', methods=['GET'])
+def admin_api_parent_children():
+    try:
+        if not inventory_staff_required():
+            return jsonify({'success': False, 'error': 'Forbidden'}), 403
+        parent_id = request.args.get('parent_id')
+        if not parent_id:
+            return jsonify({'success': False, 'error': 'parent_id is required'}), 400
+        products = load_products()
+        parent = next((p for p in products if str(p.get('id')) == str(parent_id)), None)
+        if not parent:
+            return jsonify({'success': False, 'error': 'Parent product not found'}), 404
+        parent_stock = float(parent.get('stock', 0) or 0)
+        parent_weight = float(parent.get('weight_kg', 0) or 0)
+        children = []
+        for product in products:
+            if str(product.get('parent_id')) == str(parent_id):
+                unit_factor = float(product.get('unit_factor', 1) or 1)
+                weight_kg = parent_weight / unit_factor if unit_factor > 0 else float(product.get('weight_kg', 0) or 0)
+                children.append({
+                    'id': product.get('id'),
+                    'name': product.get('name'),
+                    'unit_factor': unit_factor,
+                    'weight_kg': weight_kg,
+                    'stock': float(product.get('stock', 0) or 0),
+                    'cost_price': float(product.get('cost_price', 0) or 0),
+                    'price': float(product.get('price', 0) or 0),
+                    'max_producible': parent_stock * unit_factor,
+                })
+        return jsonify(children)
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@admin_bp.route('/admin/stock-movements', methods=['GET'])
+def admin_stock_movements_page():
+    try:
+        if not inventory_staff_required():
+            return 'Forbidden', 403
+        products = sorted(load_products(), key=lambda p: (
+            not str(p.get('is_bulk', False)).lower() in ('true', '1'),
+            str(p.get('name', '')).lower()
+        ))
+        return render_template(
+            'admin_stock_movements.html',
+            products=products,
+            stats=inventory_layout_stats(products),
+        )
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@admin_bp.route('/admin/api/stock-movements', methods=['GET'])
+def admin_api_stock_movements():
+    try:
+        if not inventory_staff_required():
+            return jsonify({'success': False, 'error': 'Forbidden'}), 403
+        product_id = request.args.get('product_id')
+        if not product_id:
+            return jsonify({'success': False, 'error': 'product_id is required'}), 400
+
+        products = load_products()
+        product = next((p for p in products if str(p.get('id')) == str(product_id)), None)
+        if not product:
+            return jsonify({'success': False, 'error': 'Product not found'}), 404
+
+        received = []
+        response = requests.get(
+            f"{Config.SUPABASE_URL}/rest/v1/restock_history?product_id=eq.{product_id}&select=*&order=created_at.desc",
+            headers=Config.SUPABASE_HEADERS,
+            timeout=8,
+        )
+        if response.status_code == 200:
+            received = response.json()
+
+        splits = []
+        response = requests.get(
+            f"{Config.SUPABASE_URL}/rest/v1/product_conversions?parent_product_id=eq.{product_id}&select=*&order=created_at.desc",
+            headers=Config.SUPABASE_HEADERS,
+            timeout=8,
+        )
+        if response.status_code == 200:
+            grouped = {}
+            for row in response.json():
+                batch = str(row.get('split_batch_id'))
+                if batch not in grouped:
+                    grouped[batch] = {
+                        'batch_id': batch,
+                        'created_at': row.get('created_at'),
+                        'staff_name': row.get('staff_name'),
+                        'parent_qty_used': 0,
+                        'variance_kg': float(row.get('variance_kg', 0) or 0),
+                        'children': [],
+                    }
+                grouped[batch]['parent_qty_used'] += float(row.get('parent_qty_used', 0) or 0)
+                child_id = str(row.get('child_product_id'))
+                child = next((p for p in products if str(p.get('id')) == child_id), None)
+                grouped[batch]['children'].append({
+                    'child_id': child_id,
+                    'child_name': child.get('name', child_id) if child else child_id,
+                    'qty': float(row.get('child_qty_produced', 0) or 0),
+                })
+            splits = list(grouped.values())
+
+        sales = []
+        response = requests.get(
+            f"{Config.SUPABASE_URL}/rest/v1/orders?select=*&order=created_at.desc",
+            headers=Config.SUPABASE_HEADERS,
+            timeout=8,
+        )
+        if response.status_code == 200:
+            for order in response.json():
+                items = order.get('items', []) or []
+                if isinstance(items, str):
+                    try:
+                        items = json.loads(items)
+                    except Exception:
+                        items = []
+                matched = []
+                for item in items:
+                    if isinstance(item, dict) and str(item.get('product_id') or item.get('id')) == str(product_id):
+                        matched.append(item)
+                if matched:
+                    sales.append({
+                        'order_id': order.get('order_id'),
+                        'created_at': order.get('created_at'),
+                        'items': matched,
+                        'quantity': sum(float(i.get('quantity', 0) or 0) for i in matched),
+                    })
+
+        return jsonify({
+            'product': product,
+            'received': received,
+            'splits': splits,
+            'sales': sales,
+        })
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@admin_bp.route('/admin/receive-stock', methods=['GET'])
+def admin_receive_stock_page():
+    try:
+        if not inventory_staff_required():
+            return 'Forbidden', 403
+        products = load_products()
+        return render_template(
+            'admin_receive_stock.html',
+            products=products,
+            stats=inventory_layout_stats(products),
+        )
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@admin_bp.route('/admin/receive-stock', methods=['POST'])
+def admin_receive_stock_submit():
+    try:
+        if not inventory_staff_required():
+            return jsonify({'success': False, 'error': 'Forbidden'}), 403
+        data = request.get_json(silent=True) or {}
+        product_id = data.get('product_id')
+        if not product_id:
+            return jsonify({'success': False, 'error': 'Product is required'}), 400
+        result = receive_stock(
+            product_id,
+            data.get('packs_received'),
+            data.get('pieces_per_pack'),
+            data.get('cost_per_pack'),
+            session.get('user', {}).get('name'),
+            data.get('notes'),
+        )
+        return jsonify(result), (200 if result.get('success') else 400)
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
+
+@admin_bp.route('/admin/api/bulk-products', methods=['POST'])
+def admin_create_bulk_product():
+    try:
+        if not inventory_staff_required():
+            return jsonify({'success': False, 'error': 'Forbidden'}), 403
+
+        data = request.get_json(silent=True) or {}
+        parent_id = str(data.get('parent_id', '')).strip()
+        parent_name = str(data.get('name', '')).strip()
+        category = str(data.get('category', '')).strip() or 'Uncategorized'
+        weight_kg = float(data.get('weight_kg', 0) or 0)
+        stock = float(data.get('stock', 0) or 0)
+        price = float(data.get('price', 0) or 0)
+        cost_price = float(data.get('cost_price', 0) or 0)
+        children = data.get('children', []) or []
+
+        if not parent_id or not parent_name:
+            return jsonify({'success': False, 'error': 'Bulk item ID and name are required'}), 400
+        if weight_kg <= 0:
+            return jsonify({'success': False, 'error': 'Weight must be greater than zero'}), 400
+        if stock <= 0:
+            return jsonify({'success': False, 'error': 'Stock must be greater than zero'}), 400
+        if not children:
+            return jsonify({'success': False, 'error': 'Add at least one sellable bag size'}), 400
+
+        parent_payload = {
+            'id': parent_id,
+            'name': parent_name,
+            'category': category,
+            'price': price,
+            'cost_price': cost_price,
+            'stock': stock,
+            'is_bulk': True,
+            'weight_kg': weight_kg,
+            'unit_factor': 1,
+            'parent_id': None,
+        }
+        response = requests.post(
+            f"{Config.SUPABASE_URL}/rest/v1/products",
+            headers=Config.SUPABASE_HEADERS,
+            json=parent_payload,
+            timeout=8,
+        )
+        if response.status_code not in [200, 201]:
+            return jsonify({'success': False, 'error': f'Could not create bulk item: {response.text}'}), 400
+
+        created_children = []
+        try:
+            for child in children:
+                child_id = str(child.get('id', '')).strip()
+                child_name = str(child.get('name', '')).strip()
+                child_weight = float(child.get('weight_kg', 0) or 0)
+                child_price = float(child.get('price', 0) or 0)
+                supplied_unit_factor = float(child.get('unit_factor', 0) or 0)
+                if not child_id or not child_name or child_weight <= 0:
+                    raise ValueError('Each child bag needs an ID, name, and weight')
+                if child_weight > weight_kg:
+                    raise ValueError(f'{child_name} cannot weigh more than the bulk item')
+
+                unit_factor = supplied_unit_factor if supplied_unit_factor > 0 else round(weight_kg / child_weight, 6)
+                child_payload = {
+                    'id': child_id,
+                    'name': child_name,
+                    'category': category,
+                    'price': child_price,
+                    'cost_price': cost_price / unit_factor,
+                    'stock': 0,
+                    'is_bulk': False,
+                    'weight_kg': child_weight,
+                    'unit_factor': unit_factor,
+                    'parent_id': parent_id,
+                }
+                child_response = requests.post(
+                    f"{Config.SUPABASE_URL}/rest/v1/products",
+                    headers=Config.SUPABASE_HEADERS,
+                    json=child_payload,
+                    timeout=8,
+                )
+                if child_response.status_code not in [200, 201]:
+                    raise RuntimeError(f'Could not create {child_name}: {child_response.text}')
+                created_children.append(child_payload)
+
+        except Exception as exc:
+            for child in created_children:
+                requests.delete(
+                    f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{child['id']}",
+                    headers=Config.SUPABASE_HEADERS,
+                    timeout=8,
+                )
+            requests.delete(
+                f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{parent_id}",
+                headers=Config.SUPABASE_HEADERS,
+                timeout=8,
+            )
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(exc)}), 400
+
+        import utils.data
+        utils.data.products_cache = []
+        return jsonify({
+            'success': True,
+            'parent_id': parent_id,
+            'children': created_children,
+        })
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(exc)}), 500
+
 
 print("✅ Admin module loaded successfully with all features working!")
