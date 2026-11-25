@@ -1,4 +1,5 @@
 import json
+import os
 import traceback
 import uuid
 from datetime import datetime, timedelta
@@ -11,6 +12,15 @@ from utils.storage import load_json_data, save_json_data
 
 products_cache = []
 orders_cache = []
+
+
+def get_supabase_write_headers():
+    headers = dict(Config.SUPABASE_HEADERS)
+    service_role_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SECRET_KEY')
+    if service_role_key:
+        headers['apikey'] = service_role_key
+        headers['Authorization'] = f'Bearer {service_role_key}'
+    return headers
 
 
 def has_internet():
@@ -204,6 +214,61 @@ def load_products():
     local_json = load_json_data()
     local_products = local_json.get('products', []) or []
 
+    def _normalise(product):
+        """Ensure every product has the shape templates expect, so nothing crashes."""
+        if not isinstance(product, dict):
+            return product
+
+        if 'barcode' not in product or product['barcode'] is None:
+            product['barcode'] = ''
+        if 'cost_price' not in product or product['cost_price'] is None:
+            product['cost_price'] = 0
+        if 'image' not in product or not product['image']:
+            product['image'] = '/static/img/placeholder-product.png'
+        if 'description' not in product or product['description'] is None:
+            product['description'] = ''
+        if 'stock' not in product or product['stock'] is None:
+            product['stock'] = 0
+        if 'price' not in product or product['price'] is None:
+            product['price'] = 0
+        if 'rating' not in product or product['rating'] is None:
+            product['rating'] = 0
+        if 'reviews' not in product or product['reviews'] is None:
+            product['reviews'] = 0
+        if 'category' not in product or not product['category']:
+            product['category'] = 'Uncategorized'
+
+        # --- SPECS: always a list of strings, so Jinja slicing works ---
+        specs = product.get('specs')
+        if isinstance(specs, dict):
+            product['specs'] = [f"{k}: {v}" for k, v in specs.items()]
+        elif isinstance(specs, list):
+            cleaned = []
+            for s in specs:
+                if isinstance(s, (str, int, float, bool)):
+                    cleaned.append(str(s))
+                elif isinstance(s, dict):
+                    cleaned.append(", ".join(f"{k}: {v}" for k, v in s.items()))
+            product['specs'] = cleaned
+        elif isinstance(specs, str) and specs.strip():
+            product['specs'] = [specs]
+        else:
+            product['specs'] = []
+
+        # --- IMAGES: always a list ---
+        images = product.get('images')
+        if isinstance(images, str):
+            try:
+                images = json.loads(images)
+            except Exception:
+                images = []
+        if not isinstance(images, list):
+            product['images'] = []
+        else:
+            product['images'] = images
+
+        return product
+
     try:
         print("🔄 Loading products from Supabase...")
 
@@ -216,20 +281,7 @@ def load_products():
         if response.status_code == 200:
             data = response.json()
             if isinstance(data, list):
-                for product in data:
-                    if 'barcode' not in product:
-                        product['barcode'] = ''
-                    if 'cost_price' not in product:
-                        product['cost_price'] = 0
-                    if 'image' not in product:
-                        product['image'] = ''
-                    if 'description' not in product:
-                        product['description'] = ''
-                    if 'stock' not in product:
-                        product['stock'] = 0
-                    if 'price' not in product:
-                        product['price'] = 0
-
+                data = [_normalise(p) for p in data]
                 products_cache = data
                 try:
                     local_json['products'] = data
@@ -252,6 +304,7 @@ def load_products():
         traceback.print_exc()
 
     if local_products:
+        local_products = [_normalise(p) for p in local_products]
         products_cache = local_products
         print(f"📦 Using cached offline products: {len(local_products)}")
         return local_products
@@ -308,7 +361,7 @@ def save_order_to_supabase(order_data):
 
             response = requests.post(
                 f"{Config.SUPABASE_URL}/rest/v1/orders",
-                headers=Config.SUPABASE_HEADERS,
+                headers=get_supabase_write_headers(),
                 json=supabase_order,
                 timeout=10,
             )
@@ -385,7 +438,7 @@ def sync_queued_orders():
 
                 response = requests.post(
                     f"{Config.SUPABASE_URL}/rest/v1/orders",
-                    headers=Config.SUPABASE_HEADERS,
+                    headers=get_supabase_write_headers(),
                     json=supabase_order,
                     timeout=10,
                 )
@@ -446,16 +499,9 @@ def sync_products_from_supabase():
 # ============================================================
 
 def update_product_stock(product_id, new_stock):
-    """Update product stock in Supabase (casts to int so Postgres accepts it)."""
+    """Update product stock in Supabase"""
     try:
         print(f"🔄 Updating stock for product {product_id} to {new_stock}")
-
-        # Supabase column `stock` is integer — never send 148.0
-        try:
-            new_stock = int(float(new_stock))
-        except (TypeError, ValueError):
-            print(f"❌ Bad stock value for {product_id}: {new_stock!r}")
-            return False
 
         response = requests.patch(
             f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{product_id}",
@@ -465,12 +511,12 @@ def update_product_stock(product_id, new_stock):
         )
 
         if response.status_code in [200, 204]:
-            print(f"✅ Stock updated for {product_id} → {new_stock}")
+            print(f"✅ Stock updated for {product_id}")
             global products_cache
             products_cache = []
             return True
         else:
-            print(f"❌ Error updating stock: {response.status_code} {response.text[:200]}")
+            print(f"❌ Error updating stock: {response.status_code}")
             return False
     except Exception as exc:
         print(f'Error updating stock: {exc}')
@@ -534,8 +580,8 @@ def get_sales_analytics():
 
         product_lookup = {str(p.get('id')): p for p in products if p and p.get('id')}
 
-        total_revenue = 0.0
-        total_shipping = 0.0
+        total_revenue = 0.0         # ✅ Products only (no shipping)
+        total_shipping = 0.0        # 🚚 Tracked separately
         total_cost = 0.0
         total_profit = 0.0
         total_orders = len(orders)
@@ -599,8 +645,8 @@ def get_sales_analytics():
             month_entry = monthly_data.setdefault(month_key, {
                 'orders': 0,
                 'items': 0,
-                'revenue': 0.0,
-                'shipping': 0.0,
+                'revenue': 0.0,     # ✅ products only
+                'shipping': 0.0,    # 🚚 separate
                 'cost': 0.0,
                 'profit': 0.0,
             })
@@ -784,3 +830,249 @@ def get_all_categories():
         'General': 'fa-box',
         'Uncategorized': 'fa-question',
     }
+
+
+def split_product(parent_id, allocations, staff_name=None, notes=None):
+    """Split one bulk product into sellable child products."""
+    try:
+        allocations = allocations or []
+        if not allocations:
+            return {'success': False, 'error': 'No allocations provided'}
+
+        child_ids = [str(a.get('child_id')) for a in allocations if a.get('child_id')]
+        if not child_ids:
+            return {'success': False, 'error': 'No child products provided'}
+
+        parent_response = requests.get(
+            f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{parent_id}&select=*",
+            headers=Config.SUPABASE_HEADERS,
+            timeout=8,
+        )
+        if parent_response.status_code != 200 or not parent_response.json():
+            return {'success': False, 'error': 'Parent product not found'}
+        parent = parent_response.json()[0]
+
+        children_response = requests.get(
+            f"{Config.SUPABASE_URL}/rest/v1/products?id=in.({','.join(child_ids)})&select=*",
+            headers=Config.SUPABASE_HEADERS,
+            timeout=8,
+        )
+        if children_response.status_code != 200:
+            return {'success': False, 'error': 'Could not fetch child products'}
+        children = {str(c['id']): c for c in children_response.json()}
+
+        parent_used = 0.0
+        kg_produced = 0.0
+        parent_weight = float(parent.get('weight_kg', 0) or 0)
+        validated = []
+        for allocation in allocations:
+            child_id = str(allocation.get('child_id', ''))
+            qty = float(allocation.get('qty_produced', 0) or 0)
+            if child_id not in children or qty <= 0:
+                continue
+            child = children[child_id]
+            unit_factor = float(allocation.get('unit_factor', child.get('unit_factor', 1)) or 1)
+            if unit_factor <= 0:
+                return {'success': False, 'error': f'Invalid unit factor for {child.get("name", child_id)}'}
+            weight_kg = parent_weight / unit_factor
+            parent_used += qty / unit_factor
+            kg_produced += qty * weight_kg
+            validated.append({
+                'child_id': child_id,
+                'qty_produced': qty,
+                'unit_factor': unit_factor,
+                'weight_kg': weight_kg,
+                'child': child,
+            })
+
+        if not validated:
+            return {'success': False, 'error': 'No valid allocations provided'}
+
+        parent_stock = float(parent.get('stock', 0) or 0)
+        if parent_used > parent_stock:
+            return {
+                'success': False,
+                'error': f"Not enough stock. Need {parent_used:g}, have {parent_stock:g}",
+            }
+
+        parent_weight = float(parent.get('weight_kg', 0) or 0)
+        variance_kg = round(parent_used * parent_weight - kg_produced, 3)
+        split_batch_id = str(uuid.uuid4())
+        applied_parent = False
+        applied_children = []
+
+        parent_cost = float(parent.get('cost_price', 0) or 0)
+        for allocation in validated:
+            child = allocation['child']
+            cost_per_child_unit = parent_cost / allocation['unit_factor']
+            response = requests.post(
+                f"{Config.SUPABASE_URL}/rest/v1/product_conversions",
+                headers=Config.SUPABASE_HEADERS,
+                json={
+                    'split_batch_id': split_batch_id,
+                    'parent_product_id': str(parent_id),
+                    'parent_qty_used': allocation['qty_produced'] / allocation['unit_factor'],
+                    'child_product_id': allocation['child_id'],
+                    'child_qty_produced': allocation['qty_produced'],
+                    'cost_per_child_unit': cost_per_child_unit,
+                    'variance_kg': variance_kg,
+                    'staff_name': staff_name,
+                    'notes': notes,
+                },
+                timeout=8,
+            )
+            if response.status_code not in [200, 201]:
+                return {'success': False, 'error': f'Conversion record failed: {response.text}'}
+
+        parent_after = parent_stock - parent_used
+        response = requests.patch(
+            f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{parent_id}",
+            headers=Config.SUPABASE_HEADERS,
+            json={'stock': parent_after},
+            timeout=8,
+        )
+        if response.status_code not in [200, 204]:
+            return {'success': False, 'error': f'Parent stock update failed: {response.text}'}
+        applied_parent = True
+
+        for allocation in validated:
+            child = allocation['child']
+            child_stock = float(child.get('stock', 0) or 0) + allocation['qty_produced']
+            cost_per_child_unit = parent_cost / allocation['unit_factor']
+            response = requests.patch(
+                f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{allocation['child_id']}",
+                headers=Config.SUPABASE_HEADERS,
+                json={
+                    'stock': child_stock,
+                    'cost_price': cost_per_child_unit,
+                    'unit_factor': allocation['unit_factor'],
+                    'weight_kg': allocation['weight_kg'],
+                },
+                timeout=8,
+            )
+            if response.status_code not in [200, 204]:
+                for applied in applied_children:
+                    requests.patch(
+                        f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{applied['id']}",
+                        headers=Config.SUPABASE_HEADERS,
+                        json={
+                            'stock': applied['old_stock'],
+                            'cost_price': applied['old_cost'],
+                            'unit_factor': applied['old_unit_factor'],
+                            'weight_kg': applied['old_weight_kg'],
+                        },
+                        timeout=8,
+                    )
+                requests.patch(
+                    f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{parent_id}",
+                    headers=Config.SUPABASE_HEADERS,
+                    json={'stock': parent_stock},
+                    timeout=8,
+                )
+                return {'success': False, 'error': f'Child stock update failed: {response.text}'}
+            applied_children.append({
+                'id': allocation['child_id'],
+                'old_stock': child.get('stock', 0),
+                'old_cost': child.get('cost_price', 0),
+                'old_unit_factor': child.get('unit_factor', 1),
+                'old_weight_kg': child.get('weight_kg', 0),
+            })
+
+        global products_cache
+        products_cache = []
+        return {
+            'success': True,
+            'split_batch_id': split_batch_id,
+            'parent_stock_after': parent_after,
+            'variance_kg': variance_kg,
+            'allocations': [
+                {'child_id': a['child_id'], 'qty_produced': a['qty_produced']}
+                for a in validated
+            ],
+        }
+    except Exception as exc:
+        print(f"❌ split_product error: {exc}")
+        traceback.print_exc()
+        return {'success': False, 'error': str(exc)}
+
+
+def receive_stock(product_id, packs_received, pieces_per_pack=None,
+                  cost_per_pack=None, staff_name=None, notes=None):
+    """Receive packeted stock and store it in piece quantities."""
+    try:
+        packs_received = int(packs_received)
+        if packs_received <= 0:
+            return {'success': False, 'error': 'Packs received must be greater than zero'}
+
+        response = requests.get(
+            f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{product_id}&select=*",
+            headers=Config.SUPABASE_HEADERS,
+            timeout=8,
+        )
+        if response.status_code != 200 or not response.json():
+            return {'success': False, 'error': 'Product not found'}
+        product = response.json()[0]
+
+        ppp = int(pieces_per_pack or product.get('pack_size') or 1)
+        if ppp <= 0:
+            return {'success': False, 'error': 'Pieces per pack must be greater than zero'}
+        total_pieces = packs_received * ppp
+
+        receipt_payload = {
+            'product_id': str(product_id),
+            'packs_received': packs_received,
+            'pieces_per_pack': ppp,
+            'total_pieces': total_pieces,
+            'cost_per_pack': cost_per_pack,
+            'staff_name': staff_name,
+            'notes': notes,
+        }
+        response = requests.post(
+            f"{Config.SUPABASE_URL}/rest/v1/stock_receipts",
+            headers=Config.SUPABASE_HEADERS,
+            json=receipt_payload,
+            timeout=8,
+        )
+        if response.status_code not in [200, 201]:
+            return {'success': False, 'error': f'Stock receipt failed: {response.text}'}
+
+        old_stock = float(product.get('stock', 0) or 0)
+        new_stock = old_stock + total_pieces
+        product_patch = {'stock': new_stock}
+        if cost_per_pack is not None:
+            product_patch['cost_price'] = float(cost_per_pack) / ppp
+
+        response = requests.patch(
+            f"{Config.SUPABASE_URL}/rest/v1/products?id=eq.{product_id}",
+            headers=Config.SUPABASE_HEADERS,
+            json=product_patch,
+            timeout=8,
+        )
+        if response.status_code not in [200, 204]:
+            return {'success': False, 'error': f'Product stock update failed: {response.text}'}
+
+        restock_cost = float(product.get('cost_price', 0) or 0)
+        requests.post(
+            f"{Config.SUPABASE_URL}/rest/v1/restock_history",
+            headers=Config.SUPABASE_HEADERS,
+            json={
+                'product_id': str(product_id),
+                'quantity_added': total_pieces,
+                'reason': 'Packet receive',
+                'cost_price': restock_cost,
+                'total_cost': cost_per_pack,
+            },
+            timeout=8,
+        )
+
+        global products_cache
+        products_cache = []
+        return {
+            'success': True,
+            'new_stock': new_stock,
+            'total_pieces': total_pieces,
+        }
+    except Exception as exc:
+        print(f"❌ receive_stock error: {exc}")
+        traceback.print_exc()
+        return {'success': False, 'error': str(exc)}
