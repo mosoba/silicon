@@ -372,7 +372,8 @@ def delete_credit_customer(customer_id):
 # ✅ COMPLETE: CREDIT PURCHASE WITH ORDER CREATION
 # ============================================================
 
-def record_credit_purchase(customer_id, items, total_amount, staff_name, notes=""):
+def record_credit_purchase(customer_id, items, total_amount, staff_name, notes="",
+                          transaction_id=None, order_id=None):
     """Record a credit purchase with profit tracking AND create order entry"""
     try:
         import json
@@ -512,7 +513,7 @@ def record_credit_purchase(customer_id, items, total_amount, staff_name, notes="
         new_balance = current_balance + total_amount
         
         # ✅ Create transaction with all fields
-        transaction_id = f'TXN-{uuid.uuid4().hex[:8].upper()}'
+        transaction_id = transaction_id or f'TXN-{uuid.uuid4().hex[:8].upper()}'
         
         transaction_data = {
             'transaction_id': transaction_id,
@@ -600,7 +601,7 @@ def record_credit_purchase(customer_id, items, total_amount, staff_name, notes="
         # ============================================================
         # ✅ CREATE ORDER ENTRY FOR CREDIT PURCHASE
         # ============================================================
-        order_id = f"CREDIT-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        order_id = order_id or f"CREDIT-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
         
         order_data = {
             'order_id': order_id,
